@@ -13,8 +13,11 @@ NR_POINT = 80
 NR_PREDICT = 100
 NR_TRAIN = 200
 
+xd = np.linspace(0, NR_POINT - TIME_STEPS, num=NR_POINT -
+                 TIME_STEPS, endpoint=False, dtype=int)
+
 x_train = np.linspace(0, 8 * np.pi, num=NR_POINT)
-x_train = np.sin(x_train).tolist()
+x_train = np.sin(x_train).tolist() + 0.003 * xd
 
 
 def create_dataset(dataset, look_back=1):
@@ -25,8 +28,6 @@ def create_dataset(dataset, look_back=1):
     return np.array(dataX), np.array(dataY)
 
 
-xd = np.linspace(0, NR_POINT - TIME_STEPS, num=NR_POINT -
-                 TIME_STEPS, endpoint=False, dtype=int).tolist()
 X, Y = create_dataset(x_train, TIME_STEPS)
 X = np.reshape(X, (len(X), TIME_STEPS, INPUT_SIZE))
 
@@ -49,7 +50,7 @@ for i in range(NR_TRAIN):
     if i % 10 == 0 or i == NR_TRAIN:
         print("step: ", i, " cost: ", cost)
         plt.cla()
-        plt.ylim(-2, 2)
+        plt.ylim(-3, 3)
         plt.xlim(0, NR_POINT + NR_PREDICT)
         p1, = plt.plot(xd, Y.flatten(), 'r')
         p2, = plt.plot(xd, pred.flatten(), 'b--')
@@ -67,7 +68,7 @@ for j in range(NR_PREDICT):
     x_train.append(p[0, 0])
     xnd.append(NR_POINT - TIME_STEPS + j)
     ynd.append(p[0, 0])
-    plt.ylim(-2, 2)
+    plt.ylim(-3, 3)
     plt.xlim(0, NR_POINT + NR_PREDICT)
     p3, = plt.plot(xnd, ynd, 'g')
     plt.legend([p1, p2, p3], ['原始值', '训练值', '预测值'])
