@@ -1,83 +1,99 @@
-#coding: UTF-8
+# coding:utf-8
 import numpy as np
+# import matplotlib.pyplot as plt
 import keras
 import pandas
 
-# 年,月,日,期号,红1,红2,红3,红4,红5,红6,蓝,销售额,一等奖,二等奖
+np.random.seed(20131118)
 
 
-def read_data():
-    data = pandas.read_csv('ssq.csv')
+def splite_base(data, base=10):
+    # 将数据转换为不同的进制，然后每个位单独一个元素，每个数据一个list
+    # 返回多个元素构成的DataFrame
+    def get_nr_ipi(x, b):
+        i = 1
+        while x / b >= 1:
+            x /= b
+            i += 1
+        return i
+    nr_ipi = get_nr_ipi(data.max(), base)
+    ret = []
+    for d in data:
+        t = np.zeros(nr_ipi, dtype='int')
+        for i in range(nr_ipi):
+            a = d % base
+            t[nr_ipi - 1 - i] = a
+            d = int(d / base)
+        ret.append(t.tolist())
+    return pandas.DataFrame(ret)
+
+
+def read_ori_data(path):
+    data = pandas.read_csv(path)
     return data
 
 
-def get_dataset():
-    dataset = read_data()
-    return dataset['蓝']
+def conv_data_to_base(data, base=10, lookback=1):
+    print(data)
+    # 将数据转换为监督训练数据
+    conved = pandas.DataFrame(dtype='int')
+    rs, re, be = 0, 0, 0
+    for col in data.columns:
+        conved = pandas.concat([conved, splite_base(data[col], base)], axis=1)
+        if col == 'yno':
+            # 红号开始的列
+            rs = conved.shape[1]
+        elif col == 'r6':
+            # 红号结束的列
+            re = conved.shape[1]
+        elif col == 'b':
+            # 蓝号结束的列
+            be = conved.shape[1]
+    x, yr, yb = [], [], []
+    for i in range(len(conved) - lookback):
+        tx = conved.iloc[i + lookback, :].tolist()[0:rs]
+        tr = conved.iloc[i + lookback, :].tolist()[rs:re]
+        tb = conved.iloc[i + lookback, :].tolist()[re:be]
+        for j in range(lookback):
+            tx += conved.iloc[i + j, :].tolist()[rs:be]
+        x.append(tx)
+        yr.append(tr)
+        yb.append(tb)
+    return np.array(x), np.array(yr), np.array(yb)
 
 
-def gen_train_data(data, mem_term):
-    # input: like data=[1 2 3 4 5 6], mem_term = 3
-    # output: like
-    # 1 2 3 -> 4
-    #   2 3 4 -> 5
-    #     3 4 5 -> 6
-    x, y = [], []
-    for i in range(len(data) - mem_term):
-        x.append(data[i:i + mem_term])
-        y.append(data[i + mem_term])
+ax, ar, ab = conv_data_to_base(read_ori_data("ssq.csv").head(10))
+print(ax.shape)
+print(ax)
+print(ar.shape)
+print(ar)
+print(ab.shape)
+print(ab)
+exit(0)
+# ax = keras.utils.np_utils.to_categorical(ax)
+# ar = keras.utils.np_utils.to_categorical(ar)
+# ab = keras.utils.np_utils.to_categorical(ab)
+# print(ax.shape)
+# print(ar.shape)
+# print(ab.shape)
 
-    return x, y
+model = keras.models.Sequential()
 
-
-TRAIN_SIZE = 1500
-BATCH_SIZE = 200
-LAYER_CELLS_LIST = [8, 32, 32, 16]
-LAYER_ACTIV_LIST = ['relu', 'relu']
-TIME_STEP = 20
-EPOCHS = 1000
-LR = 0.02
-
-blueall = get_dataset()
-train_x = blueall[0:TRAIN_SIZE].values.tolist()
-test_x = blueall[TRAIN_SIZE:].values.tolist()
-
-
-Train_X, Train_Y_pre = gen_train_data(train_x, TIME_STEP)
-Train_X = np.reshape(Train_X, (len(Train_X), TIME_STEP, 1))
-Train_Y = np.zeros((len(Train_Y_pre), 16), dtype=int)
-for yi in range(len(Train_Y_pre)):
-    Train_Y[yi][Train_Y_pre[yi] - 1] = 1
-
-Test_X, Test_Y_pre = gen_train_data(test_x, TIME_STEP)
-Test_X = np.reshape(Test_X, (len(Test_X), TIME_STEP, 1))
-Test_Y = np.zeros((len(Test_Y_pre), 16), dtype=int)
-for yi in range(len(Test_Y_pre)):
-    Test_Y[yi][Test_Y_pre[yi] - 1] = 1
-
-model = keras.Sequential()
-# model.add(keras.layers.Dense(
-#     units=LAYER_CELLS_LIST[0],
-#     activation=LAYER_ACTIV_LIST[0]
-# ))
-model.add(keras.layers.LSTM(
-    units=LAYER_CELLS_LIST[1],
-    input_shape=(TIME_STEP, 1)
-))
-# model.add(keras.layers.LSTM(
-#     units=LAYER_CELLS_LIST[2]
-# ))
 model.add(keras.layers.Dense(
-    units=LAYER_CELLS_LIST[3],
-    activation='softmax'
+    units=64,
+))
+model.add(keras.layers.Dropout(
+    rate=0.2
 ))
 
-model.compile(
-    optimizer=keras.optimizers.adam(LR),
-    loss='categorical_crossentropy'
-)
-model.fit(Train_X, Train_Y,
-          batch_size=BATCH_SIZE,
-          epochs=EPOCHS,
-          verbose=2
-          )
+model.add(keras.layers.Dense(
+    units=64,
+))
+model.add(keras.layers.Dropout(
+    rate=0.2
+))
+
+
+model.add(keras.layers.Dense(
+    units=14,
+))
